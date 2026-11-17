@@ -1,0 +1,17 @@
+# PersistentVolumeClaim para persistencia de datos de MongoDB
+# Solicita almacenamiento persistente de 1Gi para los datos de la base de datos
+# Los datos persisten incluso si el pod de MongoDB se reinicia o elimina
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+  namespace: practica-s11
+  labels:
+    app: mongo
+    tier: database
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

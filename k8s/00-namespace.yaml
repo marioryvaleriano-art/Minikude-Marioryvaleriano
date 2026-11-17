@@ -1,0 +1,9 @@
+# Namespace para aislar los recursos del proyecto
+# Separa lógicamente los recursos de esta práctica del resto del clúster
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: practica-s11
+  labels:
+    name: practica-s11
+    project: springwebflux-mongodb

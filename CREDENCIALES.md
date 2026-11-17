@@ -1,13 +1,31 @@
-# 🔐 Gestión de Credenciales - S08 | AP6
+# 🔐 Gestión de Credenciales - S11
 
-## Credenciales Actuales (Solo para Desarrollo)
+> [!WARNING]
+> **AVISO DE SEGURIDAD (Repositorio Público):** Este repositorio es público. Las credenciales aquí expuestas son exclusivamente de **demostración académica** para un entorno de pruebas en un **clúster local (Minikube)**. NUNCA subas ni utilices estas credenciales en entornos de producción, servidores expuestos a Internet o proyectos reales.
+
+---
+
+## Estructura de Manifiestos de la Práctica (S11)
+
+Para mantener la coherencia y orden de despliegue en el clúster local, la arquitectura se divide en los siguientes manifiestos:
+
+| Archivo | Tipo / Recurso | Descripción |
+| :--- | :--- | :--- |
+| `00-namespace.yaml` | `Namespace` | Crea y aísla el espacio de nombres `practica-s11`. |
+| `01-mongo-pvc.yaml` | `PersistentVolumeClaim` | Solicita almacenamiento persistente (1Gi) para MongoDB. |
+| `02-app-configmap.yaml` | `ConfigMap` | Variables de entorno no sensibles del Backend (`DB_HOST`, `DB_PORT`, `DB_NAME`, `APP_PORT`). |
+| `03-db-secret.yaml` | `Secret` | Credenciales sensibles de MongoDB codificadas en Base64. |
+| `04-mongo-stack.yaml` | `Deployment` + `Service` | Despliegue de MongoDB 7.0 y servicio de red interno. |
+| `05-backend-stack.yaml` | `Deployment` + `Service` | Despliegue del Backend Spring Boot WebFlux y exposición NodePort. |
+
+---
+
+## Credenciales Actuales (Solo para Desarrollo / Entorno Local)
 
 ### MongoDB
 
-- **Usuario:** `adminpractica`
-- **Contraseña:** `practica2024`
-
-**⚠️ IMPORTANTE:** Estas son credenciales de **demostración académica**. NUNCA uses estas credenciales en entornos de producción o proyectos reales.
+- **Usuario:** `admin`
+- **Contraseña:** `Mongo2026$eguro`
 
 ---
 
@@ -19,88 +37,100 @@ Si deseas cambiar las credenciales de MongoDB, sigue estos pasos:
 
 #### Paso 1: Generar valores en Base64
 
-```powershell
-# Convertir nuevo usuario a Base64
-$nuevoUsuario = "mi_nuevo_usuario"
-$usuarioBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($nuevoUsuario))
-Write-Host "DB_USER (Base64): $usuarioBase64"
+En PowerShell:
 
-# Convertir nueva contraseña a Base64
-$nuevaPassword = "mi_nueva_password_segura"
+```powershell
+# Convertir usuario a Base64
+$nuevoUsuario = "admin"
+$usuarioBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($nuevoUsuario))
+Write-Host "MONGO_INITDB_ROOT_USERNAME (Base64): $usuarioBase64"
+# Resultado para 'admin': YWRtaW4=
+
+# Convertir contraseña a Base64 (usar comillas simples para no interpolar el caracter $)
+$nuevaPassword = 'Mongo2026$eguro'
 $passwordBase64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($nuevaPassword))
-Write-Host "DB_PASS (Base64): $passwordBase64"
+Write-Host "MONGO_INITDB_ROOT_PASSWORD (Base64): $passwordBase64"
+# Resultado para 'Mongo2026$eguro': TW9uZ28yMDI2JGVndXJv
 ```
 
-#### Paso 2: Editar k8s/02-db-secret.yaml
+#### Paso 2: Editar k8s/03-db-secret.yaml
 
-Reemplaza los valores en Base64:
+Reemplaza los valores en Base64 correspondientes:
 
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
   name: db-secret
-  namespace: practica-s08
+  namespace: practica-s11
   labels:
-    app: mongodb
+    app: mongo
     tier: database
 type: Opaque
 data:
-  # Usuario de MongoDB (en Base64)
-  DB_USER: <USUARIO_EN_BASE64>
+  # Usuario root de MongoDB (en Base64)
+  MONGO_INITDB_ROOT_USERNAME: YWRtaW4=
   
   # Contraseña de MongoDB (en Base64)
-  DB_PASS: <PASSWORD_EN_BASE64>
+  MONGO_INITDB_ROOT_PASSWORD: TW9uZ28yMDI2JGVndXJv
 ```
 
 #### Paso 3: Aplicar los cambios
 
 ```powershell
 # Eliminar el secret anterior
-kubectl delete secret db-secret -n practica-s08
+kubectl delete secret db-secret -n practica-s11
 
-# Aplicar el nuevo secret
-kubectl apply -f k8s/02-db-secret.yaml
+# Aplicar el nuevo secret actualizado
+kubectl apply -f k8s/03-db-secret.yaml
 
 # Reiniciar los deployments para que tomen el nuevo secret
-kubectl rollout restart deployment mongo-deployment -n practica-s08
-kubectl rollout restart deployment backend-deployment -n practica-s08
+kubectl rollout restart deployment mongo-deployment -n practica-s11
+kubectl rollout restart deployment backend-deployment -n practica-s11
 
 # Esperar a que estén listos
-kubectl wait --for=condition=ready pod -l app=mongodb -n practica-s08 --timeout=120s
-kubectl wait --for=condition=ready pod -l app=backend -n practica-s08 --timeout=180s
+kubectl wait --for=condition=ready pod -l app=mongo -n practica-s11 --timeout=120s
+kubectl wait --for=condition=ready pod -l app=backend -n practica-s11 --timeout=180s
 ```
+
+---
 
 ### Opción 2: Usar kubectl para crear el Secret
 
-En lugar de editar el YAML manualmente, puedes crear el Secret directamente:
+En lugar de editar el archivo YAML manualmente, puedes crear el Secret directamente mediante CLI:
 
 ```powershell
-# Eliminar el secret anterior
-kubectl delete secret db-secret -n practica-s08 2>$null
+# Eliminar el secret anterior (si existe)
+kubectl delete secret db-secret -n practica-s11 2>$null
 
 # Crear nuevo secret con las credenciales
-kubectl create secret generic db-secret `
-  --from-literal=DB_USER=mi_nuevo_usuario `
-  --from-literal=DB_PASS=mi_nueva_password_segura `
-  -n practica-s08
+kubectl create secret generic db-secret --from-literal=MONGO_INITDB_ROOT_USERNAME=admin --from-literal=MONGO_INITDB_ROOT_PASSWORD=Mongo2026$eguro -n practica-s11
 
 # Reiniciar deployments
-kubectl rollout restart deployment mongo-deployment -n practica-s08
-kubectl rollout restart deployment backend-deployment -n practica-s08
+kubectl rollout restart deployment mongo-deployment -n practica-s11
+kubectl rollout restart deployment backend-deployment -n practica-s11
 ```
 
-### Opción 3: Usar variables de entorno locales (para testing)
+> [!NOTE]
+> En PowerShell, si ejecutas el comando con `--from-literal=MONGO_INITDB_ROOT_PASSWORD=Mongo2026$eguro`, PowerShell podría intentar interpretar `$eguro` como variable si está entre comillas dobles. Usar comillas simples `'Mongo2026$eguro'` asegura que se mantenga el texto literal.
 
-Si solo quieres probar localmente sin Kubernetes:
+---
+
+### Opción 3: Usar variables de entorno locales (para testing sin Kubernetes)
+
+Si deseas probar localmente la aplicación Spring Boot sin Kubernetes:
 
 ```powershell
 # Definir variables de entorno
 $env:DB_HOST = "localhost"
-$env:DB_NAME = "practica_db"
-$env:DB_USER = "mi_usuario"
-$env:DB_PASS = "mi_password"
-$env:APP_PORT = "8080"
+$env:DB_PORT = "27017"
+$env:DB_NAME = "BodegaPeiranoNoSQL"
+$env:MONGO_INITDB_ROOT_USERNAME = "admin"
+$env:MONGO_INITDB_ROOT_PASSWORD = 'Mongo2026$eguro'
+$env:APP_PORT = "8085"
+
+# Variable para URI de MongoDB (según backend-stack)
+$env:SPRING_DATA_MONGODB_URI = "mongodb://${env:MONGO_INITDB_ROOT_USERNAME}:${env:MONGO_INITDB_ROOT_PASSWORD}@${env:DB_HOST}:${env:DB_PORT}/${env:DB_NAME}?authSource=admin"
 
 # Ejecutar la aplicación
 mvn spring-boot:run
@@ -110,16 +140,16 @@ mvn spring-boot:run
 
 ## Verificar que las Credenciales Funcionan
 
-### Verificar en MongoDB
+### 1. Verificar en MongoDB
 
 ```powershell
 # Obtener el nombre del pod de MongoDB
-$mongoPod = kubectl get pods -n practica-s08 -l app=mongodb -o jsonpath="{.items[0].metadata.name}"
+$mongoPod = kubectl get pods -n practica-s11 -l app=mongo -o jsonpath="{.items[0].metadata.name}"
 
 # Intentar conectarse con las credenciales
-kubectl exec -it $mongoPod -n practica-s08 -- mongosh `
-  -u adminpractica `
-  -p practica2024 `
+kubectl exec -it $mongoPod -n practica-s11 -- mongosh `
+  -u admin `
+  -p Mongo2026$eguro `
   --authenticationDatabase admin
 ```
 
@@ -128,27 +158,27 @@ Si las credenciales son correctas, verás el prompt de MongoDB:
 test>
 ```
 
-### Verificar en el Backend
+### 2. Verificar en el Backend
 
 ```powershell
 # Obtener el nombre del pod del backend
-$backendPod = kubectl get pods -n practica-s08 -l app=backend -o jsonpath="{.items[0].metadata.name}"
+$backendPod = kubectl get pods -n practica-s11 -l app=backend -o jsonpath="{.items[0].metadata.name}"
 
-# Ver las variables de entorno (sin mostrar la contraseña completa)
-kubectl exec -it $backendPod -n practica-s08 -- env | Select-String "DB_USER"
+# Ver las variables de entorno inyectadas (sin exponer contraseñas)
+kubectl exec -it $backendPod -n practica-s11 -- env | Select-String "MONGO_INITDB_ROOT_USERNAME"
 
 # Ver los logs para verificar conexión
-kubectl logs $backendPod -n practica-s08 --tail=50 | Select-String "MongoDB"
+kubectl logs $backendPod -n practica-s11 --tail=50 | Select-String "MongoDB"
 ```
 
-### Verificar mediante la API
+### 3. Verificar mediante la API
 
 ```powershell
-# Obtener URL del servicio
-$serviceUrl = minikube service backend-service -n practica-s08 --url
+# Obtener URL del servicio en Minikube
+$serviceUrl = minikube service backend-service -n practica-s11 --url
 
-# Health check (debe mostrar db_connection: OK)
-curl "$serviceUrl/api/health"
+# Health check (Spring Boot Actuator)
+curl "$serviceUrl/actuator/health"
 ```
 
 ---
@@ -158,15 +188,15 @@ curl "$serviceUrl/api/health"
 Si necesitas ver las credenciales actuales almacenadas en el Secret:
 
 ```powershell
-# Ver el Secret completo
-kubectl get secret db-secret -n practica-s08 -o yaml
+# Ver el Secret completo en YAML (valores en Base64)
+kubectl get secret db-secret -n practica-s11 -o yaml
 
 # Decodificar solo el usuario
-kubectl get secret db-secret -n practica-s08 -o jsonpath="{.data.DB_USER}" | `
+kubectl get secret db-secret -n practica-s11 -o jsonpath="{.data.MONGO_INITDB_ROOT_USERNAME}" | `
   ForEach-Object { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_)) }
 
 # Decodificar solo la contraseña
-kubectl get secret db-secret -n practica-s08 -o jsonpath="{.data.DB_PASS}" | `
+kubectl get secret db-secret -n practica-s11 -o jsonpath="{.data.MONGO_INITDB_ROOT_PASSWORD}" | `
   ForEach-Object { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_)) }
 ```
 
@@ -177,42 +207,36 @@ kubectl get secret db-secret -n practica-s08 -o jsonpath="{.data.DB_PASS}" | `
 ### ✅ SÍ hacer:
 
 1. **Usar Secrets para credenciales:**
-   - Nunca hardcodear en el código fuente
-   - Usar ConfigMaps solo para configuración no sensible
+   - Nunca hardcodearlas en el código fuente.
+   - Usar ConfigMaps únicamente para configuración no sensible.
 
 2. **Rotar credenciales regularmente:**
-   - Cambiar contraseñas periódicamente
-   - Especialmente después de que alguien deje el equipo
+   - Cambiar contraseñas periódicamente.
+   - Especialmente después de cambios en el equipo o ciclo del proyecto.
 
 3. **Principio de mínimo privilegio:**
-   - Crear usuarios de MongoDB con solo los permisos necesarios
-   - Ejemplo: un usuario de solo lectura para reportes
+   - Crear usuarios de MongoDB con solo los permisos necesarios para la base de datos de la aplicación.
 
 4. **Credenciales diferentes por entorno:**
-   - Desarrollo: credenciales simples
-   - Producción: credenciales complejas y únicas
+   - Desarrollo / Local: credenciales de prueba predefinidas (como en este laboratorio).
+   - Producción: credenciales complejas, generadas aleatoriamente y gestionadas por sistemas de secretos dedicados.
 
-5. **No commitear Secrets a Git:**
-   - El `.gitignore` debe incluir archivos de secretos locales
-   - Si accidentalmente commiteaste un secret, rotalo inmediatamente
+5. **No commitear Secrets sensibles a repositorios públicos:**
+   - Los secretos de entornos reales no deben versionarse en Git sin cifrado previo.
 
 ### ❌ NO hacer:
 
 1. **No usar credenciales por defecto:**
-   - `admin/admin`, `root/root`, etc.
+   - Evitar `admin/admin`, `root/root`, etc.
 
-2. **No compartir credenciales de producción:**
-   - Usar herramientas de gestión de secretos (Vault, 1Password)
+2. **No compartir credenciales en repositorios públicos:**
+   - Recordar que este repositorio es público; cualquier credencial aquí visible es de demostración para Minikube.
 
-3. **No logear credenciales:**
-   - Nunca imprimir secretos en logs
-   - Cuidado con stack traces que pueden exponer variables
+3. **No imprimir credenciales en logs:**
+   - Nunca imprimir cadenas de conexión con passwords en los logs de la aplicación.
 
-4. **No reutilizar credenciales:**
-   - Cada servicio debe tener sus propias credenciales
-
-5. **No commitear archivos .env:**
-   - Agregar `.env*` al `.gitignore`
+4. **No reutilizar contraseñas:**
+   - Las contraseñas de este clúster local jamás deben reutilizarse en otros servicios o infraestructuras.
 
 ---
 
@@ -220,19 +244,16 @@ kubectl get secret db-secret -n practica-s08 -o jsonpath="{.data.DB_PASS}" | `
 
 ### Para Producción: Sealed Secrets
 
-Sealed Secrets permite encriptar secretos para commitearlos de forma segura a Git.
+Sealed Secrets permite encriptar secretos para commitearlos de forma segura a Git:
 
 ```powershell
 # Instalar Sealed Secrets Controller
 kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.24.0/controller.yaml
 
-# Instalar cliente kubeseal
-# (Descargar desde https://github.com/bitnami-labs/sealed-secrets/releases)
-
-# Crear un secret
+# Crear un secret localmente (dry-run)
 kubectl create secret generic db-secret `
-  --from-literal=DB_USER=adminpractica `
-  --from-literal=DB_PASS=practica2024 `
+  --from-literal=MONGO_INITDB_ROOT_USERNAME=admin `
+  --from-literal=MONGO_INITDB_ROOT_PASSWORD='Mongo2026$eguro' `
   --dry-run=client `
   -o yaml > db-secret.yaml
 
@@ -244,55 +265,22 @@ kubeseal -f db-secret.yaml -w db-sealed-secret.yaml
 
 ### Para Producción: HashiCorp Vault
 
-Vault proporciona gestión centralizada de secretos con auditoría y rotación automática.
+Vault proporciona gestión centralizada de secretos con auditoría y rotación automática:
 
 ```yaml
-# Ejemplo de configuración con Vault
-apiVersion: v1
-kind: Pod
+# Ejemplo de configuración con Vault Agent
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: backend
-  annotations:
-    vault.hashicorp.com/agent-inject: "true"
-    vault.hashicorp.com/role: "backend"
-    vault.hashicorp.com/agent-inject-secret-database: "database/creds/mongodb"
+  name: backend-deployment
+  namespace: practica-s11
 spec:
-  serviceAccountName: backend
-  containers:
-  - name: backend
-    image: backend-practica:1.0
-```
-
-### Para Cloud: Servicios Nativos
-
-#### AWS Secrets Manager
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: db-secret
-  annotations:
-    aws-secret-manager/secret-name: "practica/mongodb"
-```
-
-#### Azure Key Vault
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: db-secret
-  annotations:
-    azure-key-vault-secret: "mongodb-credentials"
-```
-
-#### Google Cloud Secret Manager
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: db-secret
-  annotations:
-    secret-manager.googleapis.com/secret-name: "mongodb-creds"
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "backend"
+        vault.hashicorp.com/agent-inject-secret-database: "database/creds/mongodb"
 ```
 
 ---
@@ -301,14 +289,14 @@ metadata:
 
 ### Ver quién accedió a un Secret
 
-Kubernetes registra accesos en los audit logs (si están habilitados):
+Kubernetes registra accesos en los logs de auditoría:
 
 ```powershell
 # Ver eventos relacionados con el secret
-kubectl get events -n practica-s08 --field-selector involvedObject.name=db-secret
+kubectl get events -n practica-s11 --field-selector involvedObject.name=db-secret
 
-# Ver pods que montan el secret
-kubectl get pods -n practica-s08 -o json | `
+# Ver pods que consumen el secret db-secret
+kubectl get pods -n practica-s11 -o json | `
   jq '.items[] | select(.spec.containers[].envFrom[]?.secretRef.name=="db-secret") | .metadata.name'
 ```
 
@@ -320,37 +308,37 @@ Para rotar credenciales sin interrumpir el servicio:
 
 ```powershell
 # 1. Crear nuevo usuario en MongoDB con los mismos permisos
-kubectl exec -it <MONGO_POD> -n practica-s08 -- mongosh -u adminpractica -p practica2024 --authenticationDatabase admin --eval '
+kubectl exec -it $mongoPod -n practica-s11 -- mongosh -u admin -p Mongo2026$eguro --authenticationDatabase admin --eval '
   db.getSiblingDB("admin").createUser({
     user: "nuevo_usuario",
-    pwd: "nueva_password",
+    pwd: "nueva_password_segura",
     roles: [{role: "root", db: "admin"}]
   })
 '
 
 # 2. Crear nuevo Secret con las nuevas credenciales
 kubectl create secret generic db-secret-new `
-  --from-literal=DB_USER=nuevo_usuario `
-  --from-literal=DB_PASS=nueva_password `
-  -n practica-s08
+  --from-literal=MONGO_INITDB_ROOT_USERNAME=nuevo_usuario `
+  --from-literal=MONGO_INITDB_ROOT_PASSWORD=nueva_password_segura `
+  -n practica-s11
 
 # 3. Actualizar Deployment para usar el nuevo Secret
-# Editar k8s/04-backend-stack.yaml:
+# Editar k8s/05-backend-stack.yaml:
 # secretRef:
 #   name: db-secret-new
 
 # 4. Aplicar cambios
-kubectl apply -f k8s/04-backend-stack.yaml
+kubectl apply -f k8s/05-backend-stack.yaml
 
 # 5. Verificar que funciona correctamente
 
 # 6. Eliminar el usuario antiguo de MongoDB
-kubectl exec -it <MONGO_POD> -n practica-s08 -- mongosh -u nuevo_usuario -p nueva_password --authenticationDatabase admin --eval '
-  db.getSiblingDB("admin").dropUser("adminpractica")
+kubectl exec -it $mongoPod -n practica-s11 -- mongosh -u nuevo_usuario -p nueva_password_segura --authenticationDatabase admin --eval '
+  db.getSiblingDB("admin").dropUser("admin")
 '
 
 # 7. Eliminar el Secret antiguo
-kubectl delete secret db-secret -n practica-s08
+kubectl delete secret db-secret -n practica-s11
 ```
 
 ---
@@ -360,17 +348,14 @@ kubectl delete secret db-secret -n practica-s08
 ### ¿Por qué Base64 si no es seguro?
 
 Base64 es solo **codificación**, no **encriptación**. Se usa para:
-- Permitir caracteres especiales en YAML
-- Consistencia en el formato de Secrets
+- Permitir caracteres especiales en YAML.
+- Consistencia en el formato de Secrets de Kubernetes.
 
-Kubernetes proporciona seguridad adicional:
-- Secrets se almacenan encriptados en etcd (si se configura)
-- Permisos de RBAC controlan quién puede leer Secrets
-- Secrets no se muestran en logs de Kubernetes
+Kubernetes proporciona seguridad adicional mediante encriptación en reposo en `etcd` y control de acceso con RBAC.
 
 ### ¿Puedo usar archivos en lugar de variables de entorno?
 
-Sí, puedes montar Secrets como archivos:
+Sí, puedes montar Secrets como volúmenes:
 
 ```yaml
 volumeMounts:
@@ -383,28 +368,25 @@ volumes:
     secretName: db-secret
 ```
 
-Luego leer desde `/etc/secrets/DB_USER` y `/etc/secrets/DB_PASS`.
-
-### ¿Cómo genero contraseñas seguras?
-
-```powershell
-# Generar contraseña aleatoria de 32 caracteres
-$password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_})
-Write-Host "Contraseña generada: $password"
-
-# O usar herramientas como 1Password, LastPass, etc.
-```
+Luego leer desde `/etc/secrets/MONGO_INITDB_ROOT_USERNAME` y `/etc/secrets/MONGO_INITDB_ROOT_PASSWORD`.
 
 ---
 
 ## Resumen
 
-- ✅ Credenciales actuales: `adminpractica` / `practica2024` (solo para desarrollo)
-- ✅ Cambiar credenciales editando el Secret y reiniciando deployments
-- ✅ Verificar conexión mediante MongoDB shell, logs y API
-- ✅ Nunca commitear credenciales reales a Git
-- ✅ Para producción, usar herramientas avanzadas como Vault o Sealed Secrets
+- ✅ **Credenciales actuales:** `admin` / `Mongo2026$eguro` (demostración académica para clúster local Minikube).
+- ✅ **Claves del Secret:** `MONGO_INITDB_ROOT_USERNAME` y `MONGO_INITDB_ROOT_PASSWORD`.
+- ✅ **Namespace:** `practica-s11`.
+- ✅ **Manifiestos vigentes:**
+  - `00-namespace.yaml`
+  - `01-mongo-pvc.yaml`
+  - `02-app-configmap.yaml`
+  - `03-db-secret.yaml`
+  - `04-mongo-stack.yaml`
+  - `05-backend-stack.yaml`
+- ✅ **Procedimiento:** Cambiar credenciales editando `k8s/03-db-secret.yaml` o mediante `kubectl create secret generic` y reiniciando deployments.
+- ✅ **Verificación:** Probar conexión mediante `mongosh`, inspección de variables de entorno con `Select-String "MONGO_INITDB_ROOT_USERNAME"` y health check de Actuator.
 
 ---
 
-**Documentación de seguridad para la práctica académica S08 | AP6**
+**Documentación de seguridad para la práctica académica S11**

@@ -1,0 +1,1 @@
+[{"op":"replace","path":"/spec/template/spec/containers/0/env/3/valueFrom/secretKeyRef/key","value":"SQL_PASSWORD"}]

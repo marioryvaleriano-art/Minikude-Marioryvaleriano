@@ -1,8 +1,10 @@
 # Script de PowerShell para desplegar el proyecto completo en Minikube
+# Proyecto: ASE251S4_T02-be (Spring Boot WebFlux + MongoDB)
 # Uso: .\scripts\deploy-all.ps1
 
 Write-Host "==================================================" -ForegroundColor Cyan
-Write-Host "  S08 | AP6 - Despliegue Automatizado" -ForegroundColor Cyan
+Write-Host "  S11 - Despliegue Automatizado" -ForegroundColor Cyan
+Write-Host "  Spring WebFlux + MongoDB en Minikube" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -46,8 +48,8 @@ Write-Host "✓ Minikube está ejecutándose" -ForegroundColor Green
 Write-Host ""
 
 # Crear namespace
-Write-Host "[3/10] Creando namespace practica-s08..." -ForegroundColor Yellow
-kubectl create namespace practica-s08 2>$null
+Write-Host "[3/11] Creando namespace practica-s11..." -ForegroundColor Yellow
+kubectl apply -f k8s/00-namespace.yaml
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✓ Namespace creado exitosamente" -ForegroundColor Green
 } else {
@@ -55,25 +57,22 @@ if ($LASTEXITCODE -eq 0) {
 }
 Write-Host ""
 
-# Configurar Docker de Minikube
-Write-Host "[4/10] Configurando entorno Docker de Minikube..." -ForegroundColor Yellow
-minikube docker-env | Invoke-Expression
-Write-Host "✓ Entorno Docker configurado" -ForegroundColor Green
-Write-Host ""
+# Configurar contexto para usar el namespace por defecto
+kubectl config set-context --current --namespace=practica-s11 2>$null
 
-# Construir imagen Docker
-Write-Host "[5/10] Construyendo imagen Docker..." -ForegroundColor Yellow
-docker build -t backend-practica:1.0 .
+# Aplicar PVC
+Write-Host "[4/11] Aplicando PersistentVolumeClaim..." -ForegroundColor Yellow
+kubectl apply -f k8s/01-mongo-pvc.yaml
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: No se pudo construir la imagen Docker" -ForegroundColor Red
+    Write-Host "ERROR: No se pudo aplicar el PVC" -ForegroundColor Red
     exit 1
 }
-Write-Host "✓ Imagen Docker construida exitosamente" -ForegroundColor Green
+Write-Host "✓ PVC aplicado" -ForegroundColor Green
 Write-Host ""
 
 # Aplicar ConfigMap
-Write-Host "[6/10] Aplicando ConfigMap..." -ForegroundColor Yellow
-kubectl apply -f k8s/01-app-configmap.yaml
+Write-Host "[5/11] Aplicando ConfigMap..." -ForegroundColor Yellow
+kubectl apply -f k8s/02-app-configmap.yaml
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: No se pudo aplicar el ConfigMap" -ForegroundColor Red
     exit 1
@@ -82,8 +81,8 @@ Write-Host "✓ ConfigMap aplicado" -ForegroundColor Green
 Write-Host ""
 
 # Aplicar Secret
-Write-Host "[7/10] Aplicando Secret..." -ForegroundColor Yellow
-kubectl apply -f k8s/02-db-secret.yaml
+Write-Host "[6/11] Aplicando Secret..." -ForegroundColor Yellow
+kubectl apply -f k8s/03-db-secret.yaml
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: No se pudo aplicar el Secret" -ForegroundColor Red
     exit 1
@@ -92,35 +91,35 @@ Write-Host "✓ Secret aplicado" -ForegroundColor Green
 Write-Host ""
 
 # Desplegar MongoDB
-Write-Host "[8/10] Desplegando MongoDB..." -ForegroundColor Yellow
-kubectl apply -f k8s/03-mongo-stack.yaml
+Write-Host "[7/11] Desplegando MongoDB..." -ForegroundColor Yellow
+kubectl apply -f k8s/04-mongo-stack.yaml
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: No se pudo desplegar MongoDB" -ForegroundColor Red
     exit 1
 }
 Write-Host "✓ MongoDB desplegado" -ForegroundColor Green
 Write-Host "Esperando a que MongoDB esté listo..." -ForegroundColor Yellow
-kubectl wait --for=condition=ready pod -l app=mongodb -n practica-s08 --timeout=120s
+kubectl wait --for=condition=ready pod -l app=mongo -n practica-s11 --timeout=120s
 Write-Host "✓ MongoDB está listo" -ForegroundColor Green
 Write-Host ""
 
 # Desplegar Backend
-Write-Host "[9/10] Desplegando Backend..." -ForegroundColor Yellow
-kubectl apply -f k8s/04-backend-stack.yaml
+Write-Host "[8/11] Desplegando Backend..." -ForegroundColor Yellow
+kubectl apply -f k8s/05-backend-stack.yaml
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: No se pudo desplegar el Backend" -ForegroundColor Red
     exit 1
 }
 Write-Host "✓ Backend desplegado" -ForegroundColor Green
 Write-Host "Esperando a que el Backend esté listo..." -ForegroundColor Yellow
-kubectl wait --for=condition=ready pod -l app=backend -n practica-s08 --timeout=180s
+kubectl wait --for=condition=ready pod -l app=backend -n practica-s11 --timeout=180s
 Write-Host "✓ Backend está listo" -ForegroundColor Green
 Write-Host ""
 
 # Verificar estado
-Write-Host "[10/10] Verificando estado del clúster..." -ForegroundColor Yellow
+Write-Host "[9/11] Verificando estado del clúster..." -ForegroundColor Yellow
 Write-Host ""
-kubectl get pods,svc,configmaps,secrets -n practica-s08
+kubectl get pods,svc,configmaps,secrets -n practica-s11
 Write-Host ""
 
 # Obtener URL de acceso
@@ -129,13 +128,13 @@ Write-Host "  ¡Despliegue completado exitosamente!" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Para obtener la URL de acceso, ejecuta:" -ForegroundColor Yellow
-Write-Host "  minikube service backend-service -n practica-s08 --url" -ForegroundColor White
+Write-Host "  minikube service backend-service -n practica-s11 --url" -ForegroundColor White
 Write-Host ""
 Write-Host "O para abrirlo directamente en el navegador:" -ForegroundColor Yellow
-Write-Host "  minikube service backend-service -n practica-s08" -ForegroundColor White
+Write-Host "  minikube service backend-service -n practica-s11" -ForegroundColor White
 Write-Host ""
-Write-Host "Endpoints disponibles:" -ForegroundColor Yellow
-Write-Host "  - GET  /api/health" -ForegroundColor White
-Write-Host "  - GET  /api/productos" -ForegroundColor White
-Write-Host "  - POST /api/productos" -ForegroundColor White
+Write-Host "Endpoints disponibles (puerto 8085):" -ForegroundColor Yellow
+Write-Host "  - GET  /actuator/health" -ForegroundColor White
+Write-Host "  - GET  /productos" -ForegroundColor White
+Write-Host "  - POST /productos" -ForegroundColor White
 Write-Host ""
